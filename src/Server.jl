@@ -15,6 +15,7 @@ import Pkg: TOML
 import ..Registrator: post_on_slack_channel
 import ..RegEdit: register, RegBranch
 import Base: string
+using ..Messaging
 
 struct CommonParams
     isvalid::Bool
@@ -355,7 +356,6 @@ function parse_submission_string(fncall)
     return name, args, kwargs
 end
 
-const event_queue = Channel{RequestParams}(1024)
 const config = Dict{String,Any}()
 const httpsock = Ref{Sockets.TCPServer}()
 
@@ -603,8 +603,6 @@ $bt
 end
 
 function comment_handler(event::WebhookEvent, phrase::RegexMatch)
-    global event_queue
-
     @debug("Received event for $(event.repository.full_name), phrase: $phrase")
     try
         handle_comment_event(event, phrase)
@@ -659,8 +657,7 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
 
     if rp.cparams.isvalid && rp.cparams.error === nothing
         print_entry_log(rp)
-
-        push!(event_queue, rp)
+        pub(rp)
         set_pending_status(rp)
     elseif rp.cparams.error !== nothing
         @info("Error while processing event: $(rp.cparams.error)")
@@ -892,9 +889,8 @@ function get_log_level()
     (log_level_str == "warn")  ? Logging.Warn  : Logging.Error
 end
 
-function status_monitor()
-    stop_file = config["server"]["stop_file"]
-    while isopen(event_queue)
+function status_monitor(stop_file, zsock)
+    while isopen(zsock)
         sleep(5)
         flush(stdout); flush(stderr);
         # stop server if stop is requested
@@ -906,10 +902,10 @@ function status_monitor()
             close(httpsock[])
 
             # wait for queued requests to be processed and close queue
-            while isready(event_queue)
+            while isready(zsock)
                 yield()
             end
-            close(event_queue)
+            close(zsock)
             rm(stop_file; force=true)
         end
     end
@@ -936,9 +932,9 @@ function recover(name, keep_running, do_action, handle_exception; backoff=0, bac
 end
 
 function request_processor()
-    do_action() = handle_events(take!(event_queue))
+    do_action() = handle_events(sub())
     handle_exception(ex) = (isa(ex, InvalidStateException) && (ex.state == :closed)) ? :exit : :continue
-    keep_running() = isopen(event_queue)
+    keep_running() = isopen(Messaging.recvsock)
     recover("request_processor", keep_running, do_action, handle_exception)
 end
 
@@ -955,22 +951,37 @@ function github_webhook(http_ip=config["server"]["http_ip"], http_port=get(confi
     recover("github_webhook", keep_running, do_action, handle_exception)
 end
 
-function main()
+function config_and_logging_setup()
+    merge!(config, Pkg.TOML.parsefile(ARGS[1]))
+    global_logger(SimpleLogger(stdout, get_log_level()))
+end
+
+function server()
     if isempty(ARGS)
-        println("Usage: julia -e 'using Registrator; Registrator.RegServer.main()' <configuration>")
+        println("Usage: julia -e 'using Registrator; Registrator.RegServer.server()' <configuration>")
         return
     end
 
-    merge!(config, Pkg.TOML.parsefile(ARGS[1]))
-    global_logger(SimpleLogger(stdout, get_log_level()))
-
+    config_and_logging_setup()
     @info("Starting server...")
-    t1 = @async request_processor()
-    t2 = @async status_monitor()
+    t = @async status_monitor(config["server"]["stop_file"], Messaging.sendsock)
     github_webhook()
-    wait(t1)
-    wait(t2)
+    wait(t)
     @warn("Server stopped.")
+end
+
+function registrar()
+    if isempty(ARGS)
+        println("Usage: julia -e 'using Registrator; Registrator.RegServer.registrar()' <configuration>")
+        return
+    end
+
+    config_and_logging_setup()
+    @info("Starting registrar...")
+    t = @async status_monitor(config["registrator"]["stop_file"], Messaging.recvsock)
+    request_processor()
+    wait(t)
+    @warn("Registrar stopped.")
 end
 
 end    # module

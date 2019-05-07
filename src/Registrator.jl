@@ -6,6 +6,7 @@ import Base: PkgId
 
 include("slack.jl")
 include("regedit/RegEdit.jl")
+include("Messaging")
 include("Server.jl")
 include("WebUI.jl")
 
