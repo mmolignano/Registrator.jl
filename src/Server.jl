@@ -901,10 +901,6 @@ function status_monitor(stop_file, zsock)
             # stop accepting new requests
             close(httpsock[])
 
-            # wait for queued requests to be processed and close queue
-            while isready(zsock)
-                yield()
-            end
             close(zsock)
             rm(stop_file; force=true)
         end
@@ -964,21 +960,21 @@ function server()
 
     config_and_logging_setup()
     @info("Starting server...")
-    t = @async status_monitor(config["server"]["stop_file"], Messaging.sendsock)
+    t = @async status_monitor(config["server"]["stop_file"], Messaging.pubsock)
     github_webhook()
     wait(t)
     @warn("Server stopped.")
 end
 
-function registrar()
+function registrator()
     if isempty(ARGS)
-        println("Usage: julia -e 'using Registrator; Registrator.RegServer.registrar()' <configuration>")
+        println("Usage: julia -e 'using Registrator; Registrator.RegServer.registrator()' <configuration>")
         return
     end
 
     config_and_logging_setup()
     @info("Starting registrar...")
-    t = @async status_monitor(config["registrator"]["stop_file"], Messaging.recvsock)
+    t = @async status_monitor(config["registrator"]["stop_file"], Messaging.subsock)
     request_processor()
     wait(t)
     @warn("Registrar stopped.")

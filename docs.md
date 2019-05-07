@@ -4,19 +4,19 @@ This document describes how you can host your own instance of Registrator.
 
 ## Running the Registrator server
 
-The server is run with `Registrator.RegServer.main()`. This can be run as a standalone server or as a docker container. See the `image` directory for instructions on how to build the docker image.
+There are two parts. One is the GitHub comment listener and the other is the registrator process. The server is run with `Registrator.RegServer.server()` and registrator with `Registrator.RegServer.registrator()`. This can be run as a standalone server or as a docker container. See the `image` directory for instructions on how to build the docker image.
 
-You must provide the configuration file as the argument:
+You can use `make` to control the components of registrator. The `Makefile` can be found in `image/scripts`. Commands:
 
-```
-julia -e 'using Registrator; Registrator.RegServer.main()' conf.toml
-```
-
-To safely stop the Registrator server, `touch` the file mentioned as `stop_file` in the config. By default it is `/tmp/stopregistrator`:
-
-```
-touch /tmp/stopregistrator
-```
+1) `make startall`
+2) `make startserver`
+3) `make startregistrator`
+4) `make stopall`
+5) `make stopserver`
+6) `make stopregistrator`
+7) `make restartall`
+8) `make restartserver`
+9) `make restartregistrator`
 
 ## Config file
 
