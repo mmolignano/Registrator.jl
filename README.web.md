@@ -110,6 +110,8 @@ There are some that are required, and some that are optional.
   For any other provider, it should be whatever key you used in your extra providers file.
 - `ROUTE_PREFIX`: Base route for the server.
   Ex: set `ROUTE_PREFIX=/registrator` to serve the UI on `<your-hostname>/registrator/`.
+- `SERVER_PORT`: The port number on which the server should run.
+  Default is 4000.
   
 ## Adding Extra Providers
 
