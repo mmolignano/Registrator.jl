@@ -11,6 +11,7 @@ using Mux
 using Pkg
 using Sockets
 using TimeToLive
+using Distributed
 
 const ROUTE_INDEX = "/"
 const ROUTE_AUTH = "/auth"
@@ -527,6 +528,11 @@ end
 
 function main(; port::Int=parse(Int, get(ENV, "SERVER_PORT", "4000")),
               ip::AbstractString="0.0.0.0", verbose::Bool=false)
+    @async while true
+        sleep(5)
+        flush(stdout)
+        flush(stderr)
+    end
     init_providers()
     init_registry()
     ip = ip == "localhost" ? Sockets.localhost : parse(IPAddr, ip)
